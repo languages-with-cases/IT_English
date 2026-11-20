@@ -1,7 +1,7 @@
 /* Complete versioned app snapshots. Updates wait until previous tabs close. */
 importScripts("./offline-assets.js");
 var OFFLINE_PREFIX = "it-english-offline-";
-var OFFLINE_CACHE = OFFLINE_PREFIX + OFFLINE_BUILD.revision + '-splash-v2';
+var OFFLINE_CACHE = OFFLINE_PREFIX + OFFLINE_BUILD.revision + '-push-fix-v3';
 var OFFLINE_BASE = new URL("./", self.location.href);
 self.addEventListener("install", function (event) {
   event.waitUntil(
@@ -25,6 +25,7 @@ self.addEventListener("install", function (event) {
       var pushResponse = await fetch(pushUrl, { cache: "reload" });
       if (!pushResponse.ok) throw Error("Offline download failed: push module");
       await cache.put(pushUrl, pushResponse);
+      await self.skipWaiting();
     })(),
   );
 });
@@ -49,7 +50,7 @@ self.addEventListener("fetch", function (event) {
   var known = OFFLINE_BUILD.assets.some(function (asset) {
     return new URL(asset.url, OFFLINE_BASE).href === url.href;
   });
-  if (!shell && !known && url.href !== new URL("src/features/push.js", OFFLINE_BASE).href) return; // Never cache Supabase, account data or unrelated requests.
+  if (!shell && !known && url.pathname !== new URL("src/features/push.js", OFFLINE_BASE).pathname) return; // Never cache Supabase, account data or unrelated requests.
   event.respondWith(
     (async function () {
       var cache = await caches.open(OFFLINE_CACHE);
