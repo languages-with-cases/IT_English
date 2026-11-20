@@ -1,11 +1,11 @@
 /**
- * Firebase Auth UI, login/logout, account ownership boundaries and initial Firestore reconciliation.
+ * Supabase Auth UI, login/logout, account ownership boundaries and progress reconciliation.
  * Classic browser script; dependency order is declared in index.html.
  */
 var OWNER_KEY = KEY + "-owner";
 
 var cloud = {
-  on: !!CLOUD_CONFIG.apiKey,
+  on: !!(CLOUD_CONFIG.url && CLOUD_CONFIG.publishableKey),
   loaded: false,
   ready: false,
   user: null,
@@ -28,18 +28,16 @@ async function onCloudUser(user) {
   cloud.msg = "";
   if (user) {
     try {
-      var snap = await cloud.fs.getDoc(cloud.fs.doc(cloud.db, "users", user.uid));
-      var remote = null;
-      if (snap.exists()) {
-        remote = remoteAll(snap.data());
-      }
+      var response = await cloud.db.from("user_progress").select("progress").eq("user_id", user.id).maybeSingle();
+      if (response.error) throw response.error;
+      var remote = response.data ? remoteAll({ all: JSON.stringify(response.data.progress) }) : null;
       var owner = null;
       try {
         owner = localStorage.getItem(OWNER_KEY);
       } catch (e) {}
       var local = JSON.parse(JSON.stringify(packAll()));
       var all;
-      if (!owner || owner === user.uid) all = remote ? mergeAlls(local, remote) : local;
+      if (!owner || owner === user.id) all = remote ? mergeAlls(local, remote) : local;
       else all = remote || { v: 2, cur: null, st: {} };
       var keepOnb = S && { onb: S.onb, onb2: S.onb2 };
       loadAll(all);
@@ -56,7 +54,7 @@ async function onCloudUser(user) {
         }
       }
       try {
-        localStorage.setItem(OWNER_KEY, user.uid);
+        localStorage.setItem(OWNER_KEY, user.id);
       } catch (e) {}
       cloud.ready = true;
       store.status = "ok";
@@ -75,20 +73,20 @@ async function onCloudUser(user) {
 async function initCloud() {
   if (!cloud.on || store.kind === "claude") return;
   try {
-    var m = await Promise.all([
-      import(CLOUD_SDK + "firebase-app.js"),
-      import(CLOUD_SDK + "firebase-auth.js"),
-      import(CLOUD_SDK + "firebase-firestore.js"),
-    ]);
-    var fb = m[0].initializeApp(CLOUD_CONFIG);
-    cloud.au = m[1];
-    cloud.fs = m[2];
-    cloud.auth = m[1].getAuth(fb);
-    cloud.db = m[2].getFirestore(fb);
+    var sdk = await import(CLOUD_SDK);
+    cloud.db = sdk.createClient(CLOUD_CONFIG.url, CLOUD_CONFIG.publishableKey, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    });
     cloud.loaded = true;
-    cloud.au.onAuthStateChanged(cloud.auth, onCloudUser);
+    cloud.db.auth.onAuthStateChange(function (_event, session) {
+      setTimeout(function () { onCloudUser(session ? session.user : null); }, 0);
+    });
+    var session = await cloud.db.auth.getSession();
+    if (session.error) throw session.error;
+    await onCloudUser(session.data.session ? session.data.session.user : null);
   } catch (e) {
-    cloud.on = false;
+    cloud.loaded = false;
+    cloud.msg = "Account service unavailable. Try again later.";
     if (ui.view === "progress") render();
   }
 }
@@ -97,24 +95,12 @@ var GOOGLE_SVG =
   '<svg viewBox="0 0 48 48" width="20" height="20"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.4 30.4 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>';
 
 function accErrText(e) {
-  var m = {
-    "auth/invalid-email": "That email address is not valid.",
-    "auth/missing-password": "Enter your password.",
-    "auth/missing-email": "Enter your email.",
-    "auth/weak-password": "Use a password of at least 6 characters.",
-    "auth/email-already-in-use": "This email is already registered. Tap Sign in.",
-    "auth/invalid-credential": "Wrong email or password.",
-    "auth/wrong-password": "Wrong email or password.",
-    "auth/user-not-found": "Wrong email or password.",
-    "auth/popup-closed-by-user": "The sign-in window was closed.",
-    "auth/cancelled-popup-request": "The sign-in window was closed.",
-    "auth/popup-blocked": "Your browser blocked the sign-in window. Allow pop-ups and try again.",
-    "auth/network-request-failed": "No internet connection.",
-    "auth/too-many-requests": "Too many attempts. Try again later.",
-    "auth/unauthorized-domain":
-      "This site address is not allowed in Firebase (Authorized domains).",
-  };
-  return m[e && e.code] || "Could not sign in. Try again.";
+  var m = String((e && e.message) || "");
+  if (/invalid login credentials/i.test(m)) return "Wrong email or password.";
+  if (/email not confirmed/i.test(m)) return "Confirm your email before signing in.";
+  if (/already registered/i.test(m)) return "This email is already registered.";
+  if (/rate limit/i.test(m)) return "Too many attempts. Try again later.";
+  return m || "Could not sign in. Try again.";
 }
 
 function accountHTML() {
@@ -124,7 +110,7 @@ function accountHTML() {
   if (cloud.user) {
     h +=
       '<b>Signed in</b><p class="who">' +
-      esc(cloud.user.email || cloud.user.displayName || "Account") +
+      esc(cloud.user.email || "Account") +
       "</p>" +
       "<p>" +
       (cloud.ready ? "Your progress is saved to your account and syncs across devices." : "") +
@@ -175,8 +161,12 @@ async function accRun(fn) {
 }
 
 function cloudGoogle() {
-  return accRun(function () {
-    return cloud.au.signInWithPopup(cloud.auth, new cloud.au.GoogleAuthProvider());
+  return accRun(async function () {
+    var result = await cloud.db.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: location.origin + location.pathname },
+    });
+    if (result.error) throw result.error;
   });
 }
 
@@ -188,29 +178,30 @@ function accVals() {
 }
 
 function cloudEmail(create) {
-  return accRun(function () {
+  return accRun(async function () {
     var v = accVals();
-    return create
-      ? cloud.au.createUserWithEmailAndPassword(cloud.auth, v[0], v[1])
-      : cloud.au.signInWithEmailAndPassword(cloud.auth, v[0], v[1]);
+    var result = create
+      ? await cloud.db.auth.signUp({ email: v[0], password: v[1], options: { emailRedirectTo: location.origin + location.pathname } })
+      : await cloud.db.auth.signInWithPassword({ email: v[0], password: v[1] });
+    if (result.error) throw result.error;
+    if (create && !result.data.session) accMsg("Check your email to confirm your account.", true);
   });
 }
 
 function cloudForgot() {
   return accRun(async function () {
     var v = accVals();
-    if (!v[0]) {
-      accMsg("Enter your email first, we will send a reset link.");
-      return;
-    }
-    await cloud.au.sendPasswordResetEmail(cloud.auth, v[0]);
+    if (!v[0]) { accMsg("Enter your email first, we will send a reset link."); return; }
+    var result = await cloud.db.auth.resetPasswordForEmail(v[0], { redirectTo: location.origin + location.pathname });
+    if (result.error) throw result.error;
     accMsg("Reset link sent. Check your email.", true);
   });
 }
 
 async function cloudOut() {
   try {
-    await cloud.au.signOut(cloud.auth);
+    var result = await cloud.db.auth.signOut();
+    if (result.error) throw result.error;
   } catch (e) {}
   cloud.user = null;
   cloud.ready = false;
