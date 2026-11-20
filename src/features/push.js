@@ -24,6 +24,18 @@ async function pushSaveTime(time) {
   pushState.time = time;
   if (pushState.enabled) await pushEnable(true);
 }
+function pushDeadline(promise, label, ms) {
+  return Promise.race([
+    promise,
+    new Promise(function (_, reject) {
+      setTimeout(function () { reject(new Error(label + " timed out after " + Math.round(ms / 1000) + " seconds.")); }, ms);
+    })
+  ]);
+}
+function pushStage(message) {
+  pushState.message = message;
+  if (ui.view === "progress") render();
+}
 async function pushEnable(skipPermission) {
   if (!cloud.user || !cloud.ready || !cloud.db || !pushSupported()) {
     pushState.message = !cloud.user ? "Sign in first." : !cloud.ready ? "Account is still syncing. Wait a moment and try again." : "Push notifications are not available in this browser.";
@@ -35,17 +47,22 @@ async function pushEnable(skipPermission) {
   try {
     var permission = skipPermission ? Notification.permission : await Notification.requestPermission();
     if (permission !== "granted") throw Error("Notifications were not allowed.");
-    var reg = await navigator.serviceWorker.ready;
-    var existing = await reg.pushManager.getSubscription();
+    pushStage("Waiting for service worker...");
+    var reg = await pushDeadline(navigator.serviceWorker.ready, "Service worker", 12000);
+    pushStage("Checking existing push subscription...");
+    var existing = await pushDeadline(reg.pushManager.getSubscription(), "Subscription check", 12000);
     var key = pushDecodeKey(PUSH_VAPID_PUBLIC);
     if (existing && existing.options && existing.options.applicationServerKey) {
       var oldKey = new Uint8Array(existing.options.applicationServerKey);
       if (oldKey.length !== key.length || oldKey.some(function (v, i) { return v !== key[i]; })) {
-        await existing.unsubscribe();
+        pushStage("Replacing old push key...");
+        await pushDeadline(existing.unsubscribe(), "Old subscription removal", 12000);
         existing = null;
       }
     }
-    var sub = existing || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+    pushStage("Creating iPhone push subscription...");
+    var sub = existing || await pushDeadline(reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }), "Push subscription", 15000);
+    pushStage("Saving subscription to Supabase...");
     var result = await cloud.db.from("push_subscriptions").upsert({
       user_id: cloud.user.id, endpoint: sub.endpoint, subscription: sub.toJSON(),
       reminder_time: pushState.time, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
