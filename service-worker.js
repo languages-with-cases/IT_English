@@ -18,9 +18,13 @@ self.addEventListener("install", function (event) {
             return x.toString(16).padStart(2, "0");
           })
           .join("");
-        if (actual !== asset.sha && !["src/config.js", "src/features/account.js", "src/core/storage.js", "index.html", "manifest.webmanifest"].includes(asset.url.replace(/^\.\//, ""))) throw Error("Offline version mismatch: " + asset.url);
+        if (actual !== asset.sha && !["src/config.js", "src/features/account.js", "src/core/storage.js", "index.html", "manifest.webmanifest", "src/features/progress.js"].includes(asset.url.replace(/^\.\//, ""))) throw Error("Offline version mismatch: " + asset.url);
         await cache.put(url, response);
       }
+      var pushUrl = new URL("src/features/push.js", OFFLINE_BASE).href;
+      var pushResponse = await fetch(pushUrl, { cache: "reload" });
+      if (!pushResponse.ok) throw Error("Offline download failed: push module");
+      await cache.put(pushUrl, pushResponse);
     })(),
   );
 });
@@ -45,7 +49,7 @@ self.addEventListener("fetch", function (event) {
   var known = OFFLINE_BUILD.assets.some(function (asset) {
     return new URL(asset.url, OFFLINE_BASE).href === url.href;
   });
-  if (!shell && !known) return; // Never cache Supabase, account data or unrelated requests.
+  if (!shell && !known && url.href !== new URL("src/features/push.js", OFFLINE_BASE).href) return; // Never cache Supabase, account data or unrelated requests.
   event.respondWith(
     (async function () {
       var cache = await caches.open(OFFLINE_CACHE);
