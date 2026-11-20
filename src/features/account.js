@@ -59,6 +59,7 @@ async function onCloudUser(user) {
       cloud.ready = true;
       store.status = "ok";
       await flush();
+      if (typeof pushLoadSettings === "function") pushLoadSettings();
     } catch (e) {
       cloud.ready = false;
       store.status = "error";
