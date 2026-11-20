@@ -130,6 +130,7 @@ function progress() {
       : "Turned off. Tap to turn on.") +
     '</span></div><i class="sw"></i></button>';
   h += offlineHTML();
+  h += '<div class="sec">Notifications</div>' + pushHTML();
   h += accountHTML();
   h +=
     '<button class="reset" onclick="resetTap()">' +
