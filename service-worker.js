@@ -1,7 +1,7 @@
 /* Complete versioned app snapshots. Updates wait until previous tabs close. */
 importScripts("./offline-assets.js");
 var OFFLINE_PREFIX = "it-english-offline-";
-var OFFLINE_CACHE = OFFLINE_PREFIX + OFFLINE_BUILD.revision + '-supabase-v1';
+var OFFLINE_CACHE = OFFLINE_PREFIX + OFFLINE_BUILD.revision + '-splash-v2';
 var OFFLINE_BASE = new URL("./", self.location.href);
 self.addEventListener("install", function (event) {
   event.waitUntil(
