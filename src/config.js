@@ -2,7 +2,7 @@
  * Stable storage keys, scoring constants and public Firebase web configuration. Changes here affect saved-progress compatibility.
  * Classic browser script; dependency order is declared in index.html.
  */
-var KEY = "pm-english-bank-v1";
+var KEY = "it-english-bank-v1";
 
 var GOAL = 1,
   GOAL_XP = 15,
@@ -41,16 +41,13 @@ var NUMW = {
 };
 
 var CLOUD_CONFIG = {
-  apiKey: "AIzaSyApsFZXfpCCSuDIBJ7h-BP6mQs75wNSOgw",
-  authDomain: "pm-english-25a4f.firebaseapp.com",
-  projectId: "pm-english-25a4f",
-  appId: "1:911583953599:web:28f669911be0ec0e89fc0a",
+  url: "https://ttkofgpsaurmqobpbtqe.supabase.co",
+  publishableKey: "sb_publishable_CMl0lPrp5aCq9wg6TYlRTQ_iPNKB0tx",
 };
-
-var CLOUD_SDK = "https://www.gstatic.com/firebasejs/10.14.1/";
+var CLOUD_SDK = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.95.3/+esm";
 
 var PASS_PCT = 0.67;
 
-var KEY2 = "pm-english-tracks-v2";
+var KEY2 = "it-english-tracks-v2";
 
 var RESET_TAG = "reset-2026-10-25";
