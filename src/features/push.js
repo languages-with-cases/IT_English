@@ -25,12 +25,27 @@ async function pushSaveTime(time) {
   if (pushState.enabled) await pushEnable(true);
 }
 async function pushEnable(skipPermission) {
-  if (!cloud.user || !cloud.ready || !pushSupported()) return;
+  if (!cloud.user || !cloud.ready || !cloud.db || !pushSupported()) {
+    pushState.message = !cloud.user ? "Sign in first." : !cloud.ready ? "Account is still syncing. Wait a moment and try again." : "Push notifications are not available in this browser.";
+    if (ui.view === "progress") render();
+    return;
+  }
+  pushState.message = "Registering this device...";
+  if (ui.view === "progress") render();
   try {
     var permission = skipPermission ? Notification.permission : await Notification.requestPermission();
     if (permission !== "granted") throw Error("Notifications were not allowed.");
     var reg = await navigator.serviceWorker.ready;
-    var sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: pushDecodeKey(PUSH_VAPID_PUBLIC) });
+    var existing = await reg.pushManager.getSubscription();
+    var key = pushDecodeKey(PUSH_VAPID_PUBLIC);
+    if (existing && existing.options && existing.options.applicationServerKey) {
+      var oldKey = new Uint8Array(existing.options.applicationServerKey);
+      if (oldKey.length !== key.length || oldKey.some(function (v, i) { return v !== key[i]; })) {
+        await existing.unsubscribe();
+        existing = null;
+      }
+    }
+    var sub = existing || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
     var result = await cloud.db.from("push_subscriptions").upsert({
       user_id: cloud.user.id, endpoint: sub.endpoint, subscription: sub.toJSON(),
       reminder_time: pushState.time, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -38,8 +53,8 @@ async function pushEnable(skipPermission) {
     }, { onConflict: "endpoint" });
     if (result.error) throw result.error;
     pushState.enabled = true;
-    pushState.message = "Reminder saved. Push delivery will start once server scheduling is configured.";
-  } catch (e) { pushState.message = e.message || "Could not enable notifications."; }
+    pushState.message = "Device registered. Daily reminders are active.";
+  } catch (e) { pushState.message = "Registration failed: " + (e.message || String(e)); }
   if (ui.view === "progress") render();
 }
 async function pushDisable() {
