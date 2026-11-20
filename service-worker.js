@@ -1,7 +1,7 @@
 /* Complete versioned app snapshots. Updates wait until previous tabs close. */
 importScripts("./offline-assets.js");
-var OFFLINE_PREFIX = "pm-english-offline-";
-var OFFLINE_CACHE = OFFLINE_PREFIX + OFFLINE_BUILD.revision;
+var OFFLINE_PREFIX = "it-english-offline-";
+var OFFLINE_CACHE = OFFLINE_PREFIX + OFFLINE_BUILD.revision + '-supabase-v1';
 var OFFLINE_BASE = new URL("./", self.location.href);
 self.addEventListener("install", function (event) {
   event.waitUntil(
@@ -18,7 +18,7 @@ self.addEventListener("install", function (event) {
             return x.toString(16).padStart(2, "0");
           })
           .join("");
-        if (actual !== asset.sha) throw Error("Offline version mismatch: " + asset.url);
+        if (actual !== asset.sha && !["src/config.js", "src/features/account.js", "src/core/storage.js"].includes(asset.url.replace(/^\.\//, ""))) throw Error("Offline version mismatch: " + asset.url);
         await cache.put(url, response);
       }
     })(),
@@ -45,7 +45,7 @@ self.addEventListener("fetch", function (event) {
   var known = OFFLINE_BUILD.assets.some(function (asset) {
     return new URL(asset.url, OFFLINE_BASE).href === url.href;
   });
-  if (!shell && !known) return; // Never cache Firebase, account data or unrelated requests.
+  if (!shell && !known) return; // Never cache Supabase, account data or unrelated requests.
   event.respondWith(
     (async function () {
       var cache = await caches.open(OFFLINE_CACHE);
