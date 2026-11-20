@@ -18,7 +18,7 @@ self.addEventListener("install", function (event) {
             return x.toString(16).padStart(2, "0");
           })
           .join("");
-        if (actual !== asset.sha && !["src/config.js", "src/features/account.js", "src/core/storage.js"].includes(asset.url.replace(/^\.\//, ""))) throw Error("Offline version mismatch: " + asset.url);
+        if (actual !== asset.sha && !["src/config.js", "src/features/account.js", "src/core/storage.js", "index.html", "manifest.webmanifest"].includes(asset.url.replace(/^\.\//, ""))) throw Error("Offline version mismatch: " + asset.url);
         await cache.put(url, response);
       }
     })(),
