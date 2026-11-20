@@ -56,3 +56,19 @@ self.addEventListener("fetch", function (event) {
     })(),
   );
 });
+
+self.addEventListener("push", function (event) {
+  var payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch (e) {}
+  event.waitUntil(self.registration.showNotification(payload.title || "IT English", {
+    body: payload.body || "Your daily English practice is waiting.",
+    icon: "./assets/images/icon-192.png",
+    badge: "./assets/images/favicon.png",
+    tag: "it-english-daily",
+    data: { url: "./" }
+  }));
+});
+self.addEventListener("notificationclick", function (event) {
+  event.notification.close();
+  event.waitUntil(clients.openWindow(new URL("./", self.registration.scope).href));
+});
