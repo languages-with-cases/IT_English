@@ -154,17 +154,18 @@ async function syncPendingCloud() {
   )
     return;
   var pending = cloudPending;
-  if (!cloud.user || !cloud.ready || cloud.user.uid !== pending.uid) {
+  if (!cloud.user || !cloud.ready || cloud.user.id !== pending.uid) {
     cloudPending = null;
     return;
   }
   cloudWriting = true;
   try {
-    await cloud.fs.setDoc(cloud.fs.doc(cloud.db, "users", pending.uid), {
-      data: JSON.stringify(pending.data.st.product || {}),
-      all: JSON.stringify(pending.data),
-      updated: Date.now(),
-    });
+    var result = await cloud.db.from("user_progress").upsert({
+      user_id: pending.uid,
+      progress: pending.data,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id" });
+    if (result.error) throw result.error;
     if (cloudPending === pending) cloudPending = null;
   } catch (error) {
     // Keep the latest local snapshot for the next save or reconnection.
@@ -185,7 +186,7 @@ async function persist() {
     localStorage.setItem(KEY2, JSON.stringify(data));
   }
   if (typeof cloud !== "undefined" && cloud.user && cloud.ready) {
-    cloudPending = { uid: cloud.user.uid, data: data };
+    cloudPending = { uid: cloud.user.id, data: data };
     syncPendingCloud();
   }
 }
