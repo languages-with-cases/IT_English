@@ -20,7 +20,7 @@ function pushHTML() {
     '<p role="status">' + esc(pushState.message) + '</p>';
 }
 async function pushSaveTime(time) {
-  if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(time)) return;
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return;
   pushState.time = time;
   if (pushState.enabled) await pushEnable(true);
 }
@@ -38,7 +38,7 @@ async function pushEnable(skipPermission) {
     }, { onConflict: "endpoint" });
     if (result.error) throw result.error;
     pushState.enabled = true;
-    pushState.message = "Reminder preference saved. Delivery requires server setup.";
+    pushState.message = "Reminder saved. Push delivery will start once server scheduling is configured.";
   } catch (e) { pushState.message = e.message || "Could not enable notifications."; }
   if (ui.view === "progress") render();
 }
@@ -56,4 +56,18 @@ async function pushDisable() {
     pushState.message = "Reminders disabled on this device.";
   } catch (e) { pushState.message = e.message || "Could not disable reminders."; }
   if (ui.view === "progress") render();
+}
+
+async function pushLoadSettings() {
+  if (!cloud.user || !cloud.db || !pushSupported()) return;
+  try {
+    var reg = await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.getSubscription();
+    if (!sub) return;
+    var result = await cloud.db.from("push_subscriptions").select("reminder_time,enabled").eq("user_id", cloud.user.id).eq("endpoint", sub.endpoint).maybeSingle();
+    if (result.error || !result.data) return;
+    pushState.enabled = !!result.data.enabled;
+    pushState.time = result.data.reminder_time.slice(0, 5);
+    if (ui.view === "progress") render();
+  } catch (e) { /* Push is optional. */ }
 }
