@@ -1,5 +1,5 @@
 /** Web Push settings for installed iOS/desktop PWAs. */
-var PUSH_VAPID_PUBLIC = "BBuh8Vsn4LdF6rOUSmWcCAyUOldNwDPOC9Dku5Fq2rJDmfnyCsGZueCqS0FjbM-64DljN_qtq27FJqgQQVgT_Mo";
+var PUSH_VAPID_PUBLIC = "BNUrwwKz2eiStRG1bate4PtUjFmIs4nsEZgeAzftE9gguBUNI4lRovk7bIURYuDIuauR2xhoiLeUueC-7b0Pmb0";
 var pushState = { enabled: false, time: "14:00", message: "" };
 function pushSupported() {
   return !!(window.isSecureContext && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window);
